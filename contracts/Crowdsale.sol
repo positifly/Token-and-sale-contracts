@@ -2,8 +2,9 @@ pragma solidity ^0.4.15;
 
 import './PULSToken.sol';
 import './Ownable.sol';
+import './StagedCrowdsale.sol';
 
-contract Crowdsale is Ownable {
+contract Crowdsale is StagedCrowdsale {
 	using SafeMath for uint256;
 
 	PULSToken public token;
@@ -11,25 +12,34 @@ contract Crowdsale is Ownable {
 	uint256 public startTime;
 	uint256 public endTime;
 	address public multiSigWallet; 	// address where funds are collected
-	uint256 public rate;	// how many token units a buyer gets per wei
-	uint256 public weiRaised;	// amount of raised money in wei
+	uint256 public totalWeiRaised;	// amount of raised money in wei
+	bool public hasEnded;	// amount of raised money in wei
 
 	event TokenPurchase(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
 
-	function Crowdsale(uint256 _startTime, uint256 _endTime, uint256 _rate, address _wallet) public {
+	modifier notEnded() {
+		require(!hasEnded);
+		_;
+	}
+
+	function Crowdsale(uint256 _startTime, uint256 _endTime, address _wallet) public {
 		require(_startTime >= now);
 		require(_endTime >= _startTime);
-		require(_rate > 0);
 		require(_wallet != address(0));
 
 		token = createTokenContract();
 		startTime = _startTime;
 		endTime = _endTime;
-		rate = _rate;
 		multiSigWallet = _wallet;
+		totalWeiRaised = 0;
+		hasEnded = false;
+
+		addStage(1,1000);
+		addStage(2,2000);
+		addStage(3,3000);
 	}
 
-	function createTokenContract() internal onlyOwner returns (PULSToken) {  // or without onlyOwner modifier
+	function createTokenContract() internal onlyOwner returns (PULSToken) {
 		return new PULSToken();
 	}
 
@@ -37,17 +47,46 @@ contract Crowdsale is Ownable {
 		buyTokens(msg.sender);
 	}
 
-	function buyTokens(address beneficiary) payable {
+	function buyTokens(address beneficiary) payable notEnded {
 		require(validPurchase());
 		
+		uint stageIndex = getCurrentStage();
+		Stage storage stageCurrent = stages[stageIndex];
 
-		uint256 weiAmount = msg.value;
-		uint256 tokens = weiAmount.mul(rate);	// calculate token amount to be created
-		weiRaised = weiRaised.add(weiAmount);	// update state
-		
-		token.buy(beneficiary, tokens);
+		uint tokens;
 
-		TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
+		// if put us in new stage - receives with next stage price
+		if (totalWeiRaised.add(msg.value) >= stageCurrent.hardcap){
+			stageCurrent.closed = now;
+
+			if (stageIndex + 1 <= stages.length - 1) {
+				Stage storage stageNext = stages[stageIndex + 1];
+
+				tokens = msg.value.mul(stageNext.price);
+				token.buy(address(this), beneficiary, tokens);
+
+				totalWeiRaised = totalWeiRaised.add(msg.value);
+				stageNext.invested = stageCurrent.invested.add(msg.value);
+			}
+			else {
+				tokens = msg.value.mul(stageCurrent.price);
+				token.buy(address(this), beneficiary, tokens);
+
+				totalWeiRaised = totalWeiRaised.add(msg.value);
+				stageCurrent.invested = stageCurrent.invested.add(msg.value);
+
+				hasEnded = true;
+			}
+		}
+		else {
+			tokens = msg.value.mul(stageCurrent.price);
+			token.buy(address(this), beneficiary, tokens);
+
+			totalWeiRaised = totalWeiRaised.add(msg.value);
+			stageCurrent.invested = stageCurrent.invested.add(msg.value);
+		}
+
+		TokenPurchase(msg.sender, beneficiary, msg.value, tokens);
 		forwardFunds();
 	}
 
@@ -60,8 +99,5 @@ contract Crowdsale is Ownable {
 		bool nonZeroPurchase = msg.value != 0;
 		return withinPeriod && nonZeroPurchase;
 	}
-
-	function hasEnded() public returns (bool) {
-		return now > endTime;
-	}
 }
+

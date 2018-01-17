@@ -19,17 +19,16 @@ const duration = {
 
 async function liveDeploy(deployer, accounts) {
 	const BigNumber = web3.BigNumber;
-	const RATE = 1000;
 	const startTime = latestTime() + duration.seconds(10);
 	const endTime =	startTime + duration.weeks(1);
-	// console.log('\n', [startTime, endTime, RATE, accounts[0]]);	
-	//(uint256 _startTime, uint256 _endTime, uint256 _rate, address _wallet) 
+	// console.log('\n', [startTime, endTime, accounts[0]]);	
+	//(uint256 _startTime, uint256 _endTime, address _wallet) 
 	
-	return deployer.deploy(PULSCrowdsale, startTime, endTime, RATE, accounts[0]).then( async () => {
+	return deployer.deploy(PULSCrowdsale, startTime, endTime, accounts[0]).then( async () => {
 
 		var Web3 = require('web3');
 		var web3 = new Web3('http://localhost:8545');
-		var encodedConstructorParameters = web3.eth.abi.encodeParameters(['uint256', 'uint256', 'uint256', 'address'], [startTime, endTime, RATE, accounts[0]]);
+		var encodedConstructorParameters = web3.eth.abi.encodeParameters(['uint256', 'uint256', 'address'], [startTime, endTime, accounts[0]]);
 		console.log('\nPULSCrowdsale encoded constructor parameteres to validate a contract:\n', encodedConstructorParameters, '\n');
 
 

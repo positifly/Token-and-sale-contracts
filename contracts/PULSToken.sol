@@ -16,13 +16,14 @@ contract PULSToken is BasicERC20Token {
 		Transfer(0x0, msg.sender, INITIAL_SUPPLY);
 	}
 
-	function buy(address _buyer, uint256 _amount) returns (bool) { // or public??
+	function buy(address _wallet, address _buyer, uint256 _amount) returns (bool) { // or public??
 		require (_buyer != 0x0);                       // Prevent transfer to 0x0 address
 		require (totalSupply >= _amount);               // Check if suchTokens amount left
 
 		totalSupply = totalSupply.sub(_amount);
+		balances[_wallet] = balances[_wallet].sub(_amount);
 		balances[_buyer] = balances[_buyer].add(_amount);
-		Transfer(address(this), _buyer, _amount);
+		Transfer(_wallet, _buyer, _amount);
 		return true;
 	}
 }
