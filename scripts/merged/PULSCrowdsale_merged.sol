@@ -1,31 +1,5 @@
 pragma solidity ^0.4.15;
 
-library SafeMath {
-	function mul(uint256 a, uint256 b) internal constant returns (uint256) {
-		uint256 c = a * b;
-		assert(a == 0 || c / a == b);
-		return c;
-	}
-
-	function div(uint256 a, uint256 b) internal constant returns (uint256) {
-		// assert(b > 0); // Solidity automatically throws when dividing by 0
-		uint256 c = a / b;
-		// assert(a == b * c + a % b); // There is no case in which this doesn't hold
-		return c;
-	}
-
-	function sub(uint256 a, uint256 b) internal constant returns (uint256) {
-		assert(b <= a);
-		return a - b;
-	}
-
-	function add(uint256 a, uint256 b) internal constant returns (uint256) {
-		uint256 c = a + b;
-		assert(c >= a);
-		return c;
-	}
-}
-
 contract Ownable {
 	address public owner;
 
@@ -52,24 +26,26 @@ contract Ownable {
 
 
 
-contract BasicERC20Token {
+
+
+contract BasicERC20Token is Ownable {
 	using SafeMath for uint256;
 
 	uint256 public totalSupply;
 	mapping(address => uint256) balances;
 	mapping (address => mapping (address => uint256)) allowed;
 
-	event Transfer(address indexed from, address indexed to, uint256 value);
-	event Approval(address indexed owner, address indexed spender, uint256 value);
+	event Transfer(address indexed from, address indexed to, uint256 amount);
+	event Approval(address indexed owner, address indexed spender, uint256 amount);
 	
-	function transfer(address _to, uint256 _value) public returns (bool) {
+	function transfer(address _to, uint256 _amount) public returns (bool) {
         require (_to != 0x0);                               // Prevent transfer to 0x0 address
-        require (balances[msg.sender] >= _value);          // Check if the sender has enough
-        require (balances[_to] + _value > balances[_to]); // Check for overflows
+        require (balances[msg.sender] >= _amount);          // Check if the sender has enough
+        require (balances[_to] + _amount > balances[_to]); // Check for overflows
 
-		balances[msg.sender] = balances[msg.sender].sub(_value);
-		balances[_to] = balances[_to].add(_value);
-		Transfer(msg.sender, _to, _value);
+		balances[msg.sender] = balances[msg.sender].sub(_amount);
+		balances[_to] = balances[_to].add(_amount);
+		Transfer(msg.sender, _to, _amount);
 		return true;
 	}
 
@@ -77,32 +53,32 @@ contract BasicERC20Token {
 		return balances[_owner];
 	}
 
-	function getTotalSupply() public constant returns (uint) {
+	function getTotalSupply() public constant returns (uint256) {
         return totalSupply;
     }
 
-	function transferFrom(address _from, address _to, uint256 _value) returns (bool) {
+	function transferFrom(address _from, address _to, uint256 _amount) returns (bool) {
 		require (_from != 0x0);                       // Prevent transfer to 0x0 address
 		require (_to != 0x0);                         // Prevent transfer to 0x0 address
-        require (balances[_from] >= _value);          // Check if the sender has enough
+        require (balances[_from] >= _amount);          // Check if the sender has enough
 
 		var _allowance = allowed[_from][msg.sender];
         require (_allowance > 0);					  // Check if allowed amount is greater then 0
 
-		balances[_to] = balances[_to].add(_value);
-		balances[_from] = balances[_from].sub(_value);
-		allowed[_from][msg.sender] = _allowance.sub(_value);
-		Transfer(_from, _to, _value);
+		balances[_to] = balances[_to].add(_amount);
+		balances[_from] = balances[_from].sub(_amount);
+		allowed[_from][msg.sender] = _allowance.sub(_amount);
+		Transfer(_from, _to, _amount);
 		return true;
 	}
 
-	function approve(address _spender, uint256 _value) returns (bool) {
+	function approve(address _spender, uint256 _amount) returns (bool) {
 		require (_spender != 0x0);                       // Prevent transfer to 0x0 address
-		require (balances[msg.sender] >= _value);		 // Check if the allowencer has enough to allow 
-		require ((_value == 0) || (allowed[msg.sender][_spender] == 0));
+		require (balances[msg.sender] >= _amount);		 // Check if the allowencer has enough to allow 
+		require ((_amount == 0) || (allowed[msg.sender][_spender] == 0));
 
-		allowed[msg.sender][_spender] = _value;
-		Approval(msg.sender, _spender, _value);
+		allowed[msg.sender][_spender] = _amount;
+		Approval(msg.sender, _spender, _amount);
 		return true;
 	}
 
@@ -117,7 +93,14 @@ contract PULSToken is BasicERC20Token {
 	uint8 public constant decimals = 18;
 	uint256 public constant INITIAL_SUPPLY = 88888888000000000000000000;
 
-	event Buy(address indexed buyer, uint256 amount);
+	struct Reserve {
+        uint256 amount;
+        bool verified;
+    }
+
+	mapping (address => Reserve) reserved;
+
+	event Verify(address indexed verifiedAddress, uint256 amount);
 
 	function PULSToken() public {
 		totalSupply = INITIAL_SUPPLY;
@@ -125,15 +108,44 @@ contract PULSToken is BasicERC20Token {
 		Transfer(0x0, msg.sender, INITIAL_SUPPLY);
 	}
 
-	function buy(address _wallet, address _buyer, uint256 _amount) returns (bool) { // or public??
-		require (_buyer != 0x0);                       // Prevent transfer to 0x0 address
+	function sendTokens(address _wallet, address _beneficiary, uint256 _amount) internal onlyOwner returns (bool) {
+		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
+		require (totalSupply >= _amount);               // Check if suchTokens amount left
+
+		balances[_wallet] = balances[_wallet].sub(_amount);
+		balances[_beneficiary] = balances[_beneficiary].add(_amount);
+
+		reserved[_beneficiary].amount = 0;
+		reserved[_beneficiary].verified = false;
+
+		Transfer(_wallet, _beneficiary, _amount);
+		return true;
+	}
+
+	function reserve(address _beneficiary, uint256 _amount) public onlyOwner returns (bool) {
+		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
 		require (totalSupply >= _amount);               // Check if suchTokens amount left
 
 		totalSupply = totalSupply.sub(_amount);
-		balances[_wallet] = balances[_wallet].sub(_amount);
-		balances[_buyer] = balances[_buyer].add(_amount);
-		Transfer(_wallet, _buyer, _amount);
+		reserved[_beneficiary].amount = reserved[_beneficiary].amount.add(_amount);
+		reserved[_beneficiary].verified = false;
 		return true;
+	}
+
+	//onlyOwner address is PULSCrowdsale address
+	function verifyAddressAndTransferTokens(address _wallet, address _addressToVerify) public onlyOwner returns (bool) {
+		require (_addressToVerify != 0x0);                       // Prevent transfer to 0x0 address
+		require(reserved[_addressToVerify].amount > 0);
+		require(reserved[_addressToVerify].verified == false);
+
+		reserved[_addressToVerify].verified = true;
+		Verify(_addressToVerify, reserved[_addressToVerify].amount);
+		sendTokens(_wallet, _addressToVerify, reserved[_addressToVerify].amount);	
+		return true;
+	}
+
+	function reserveOf(address _owner) public constant returns (uint256) {
+		return reserved[_owner].amount;
 	}
 }
 
@@ -141,22 +153,47 @@ contract PULSToken is BasicERC20Token {
 
 
 
+library SafeMath {
+	function mul(uint256 a, uint256 b) internal constant returns (uint256) {
+		uint256 c = a * b;
+		assert(a == 0 || c / a == b);
+		return c;
+	}
+
+	function div(uint256 a, uint256 b) internal constant returns (uint256) {
+		// assert(b > 0); // Solidity automatically throws when dividing by 0
+		uint256 c = a / b;
+		// assert(a == b * c + a % b); // There is no case in which this doesn't hold
+		return c;
+	}
+
+	function sub(uint256 a, uint256 b) internal constant returns (uint256) {
+		assert(b <= a);
+		return a - b;
+	}
+
+	function add(uint256 a, uint256 b) internal constant returns (uint256) {
+		uint256 c = a + b;
+		assert(c >= a);
+		return c;
+	}
+}
 
 contract StagedCrowdsale is Ownable {
 
-    using SafeMath for uint;
+    using SafeMath for uint256;
 
     struct Stage {
-        uint hardcap;
-        uint price;
-        uint invested;
-        uint closed;
+        uint256 hardcap;
+        uint256 price;
+        uint256 invested;
+        uint256 closed;
     }
 
     Stage[] public stages;
 
-    function getCurrentStage() public constant returns(uint) {
-        for(uint i=0; i < stages.length; i++) {
+    function getCurrentStage() public constant returns(uint256) {
+        for(uint256 i=0; i < stages.length; i++) {
             if(stages[i].closed == 0) {
                 return i;
             }
@@ -164,7 +201,7 @@ contract StagedCrowdsale is Ownable {
         revert();
     }
 
-    function addStage(uint hardcap, uint price) public onlyOwner {
+    function addStage(uint256 hardcap, uint256 price) public onlyOwner {
         require(hardcap > 0 && price > 0);
         Stage memory stage = Stage(hardcap.mul(1 ether), price, 0, 0);
         stages.push(stage);
@@ -182,7 +219,7 @@ contract Crowdsale is StagedCrowdsale {
 	uint256 public totalWeiRaised;	// amount of raised money in wei
 	bool public hasEnded;	// amount of raised money in wei
 
-	event TokenPurchase(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
+	event TokenReservation(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
 
 	modifier notEnded() {
 		require(!hasEnded);
@@ -206,6 +243,7 @@ contract Crowdsale is StagedCrowdsale {
 		addStage(3,3000);
 	}
 
+	//onlyOwner address is deployer address
 	function createTokenContract() internal onlyOwner returns (PULSToken) {
 		return new PULSToken();
 	}
@@ -217,10 +255,10 @@ contract Crowdsale is StagedCrowdsale {
 	function buyTokens(address beneficiary) payable notEnded {
 		require(validPurchase());
 		
-		uint stageIndex = getCurrentStage();
+		uint256 stageIndex = getCurrentStage();
 		Stage storage stageCurrent = stages[stageIndex];
 
-		uint tokens;
+		uint256 tokens;
 
 		// if put us in new stage - receives with next stage price
 		if (totalWeiRaised.add(msg.value) >= stageCurrent.hardcap){
@@ -230,14 +268,16 @@ contract Crowdsale is StagedCrowdsale {
 				Stage storage stageNext = stages[stageIndex + 1];
 
 				tokens = msg.value.mul(stageNext.price);
-				token.buy(address(this), beneficiary, tokens);
+				token.reserve(beneficiary, tokens);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageNext.invested = stageCurrent.invested.add(msg.value);
+
+				stageCurrent.invested = stageCurrent.hardcap;
 			}
 			else {
 				tokens = msg.value.mul(stageCurrent.price);
-				token.buy(address(this), beneficiary, tokens);
+				token.reserve(beneficiary, tokens);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageCurrent.invested = stageCurrent.invested.add(msg.value);
@@ -247,14 +287,20 @@ contract Crowdsale is StagedCrowdsale {
 		}
 		else {
 			tokens = msg.value.mul(stageCurrent.price);
-			token.buy(address(this), beneficiary, tokens);
+			token.reserve(beneficiary, tokens);
 
 			totalWeiRaised = totalWeiRaised.add(msg.value);
 			stageCurrent.invested = stageCurrent.invested.add(msg.value);
 		}
 
-		TokenPurchase(msg.sender, beneficiary, msg.value, tokens);
+		TokenReservation(msg.sender, beneficiary, msg.value, tokens);
 		forwardFunds();
+	}
+
+	function verifyAddress(address _addressToVerify) public onlyOwner returns(bool) {
+		require(hasEnded);
+		token.verifyAddressAndTransferTokens(address(this), _addressToVerify);
+		return true;
 	}
 
 	function forwardFunds() internal {
@@ -263,7 +309,7 @@ contract Crowdsale is StagedCrowdsale {
 
 	function validPurchase() internal returns (bool) {
 		bool withinPeriod = now >= startTime && now <= endTime;
-		bool nonZeroPurchase = msg.value != 0;
+		bool nonZeroPurchase = msg.value > 0;
 		return withinPeriod && nonZeroPurchase;
 	}
 }
