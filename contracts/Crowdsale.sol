@@ -3,11 +3,16 @@ pragma solidity ^0.4.15;
 import './PULSToken.sol';
 import './StagedCrowdsale.sol';
 
+/**
+ * @title Basic crowdsale
+ * @dev Basic crowdsale functionality.
+ */
 contract Crowdsale is StagedCrowdsale {
 	using SafeMath for uint256;
 
 	PULSToken public token;
 
+	// Public variables of the crowdsale
 	uint256 public startTime;
 	uint256 public endTime;
 	address public multiSigWallet; 	// address where funds are collected
@@ -16,11 +21,33 @@ contract Crowdsale is StagedCrowdsale {
 
 	event TokenReservation(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
 
+
+	/**
+     * @dev Throws if crowdsale has ended.
+     */
 	modifier notEnded() {
 		require(!hasEnded);
 		_;
 	}
 
+
+	/**
+     * @dev Throws if crowdsale has not ended.
+     */
+	modifier ended() {
+		require(hasEnded);
+		_;
+	}
+
+
+	/**
+     * @dev The Crowdsale constructor sets the start time, end time and multisig wallet for forwanding funds.
+     * Adds stages to the crowdsale. Initialize PULS tokens.
+     *
+     * @param _startTime The start time of the crowdsale.
+     * @param _endTime The end time of the crowdsale.
+     * @param _wallet The address of multisig lawyers address.
+     */
 	function Crowdsale(uint256 _startTime, uint256 _endTime, address _wallet) public {
 		require(_startTime >= now);
 		require(_endTime >= _startTime);
@@ -38,16 +65,31 @@ contract Crowdsale is StagedCrowdsale {
 		addStage(3,3000);
 	}
 
-	//onlyOwner address is deployer address
+
+	/**
+     * @dev Function to create PULS tokens contract.
+     *
+     * @return PULSToken The instance of PULS token contract.
+     */
 	function createTokenContract() internal onlyOwner returns (PULSToken) {
 		return new PULSToken();
 	}
 
+
+	/**
+     * @dev Payable function.
+     */
 	function () external payable {
 		buyTokens(msg.sender);
 	}
 
-	function buyTokens(address beneficiary) payable notEnded {
+
+	/**
+     * @dev Function to buy tokens - reserve calculated amount of tokens.
+     *
+     * @param _beneficiary The address of the buyer.
+     */
+	function buyTokens(address _beneficiary) payable notEnded {
 		require(validPurchase());
 		
 		uint256 stageIndex = getCurrentStage();
@@ -63,7 +105,7 @@ contract Crowdsale is StagedCrowdsale {
 				Stage storage stageNext = stages[stageIndex + 1];
 
 				tokens = msg.value.mul(stageNext.price);
-				token.reserve(beneficiary, tokens);
+				token.reserveTokens(_beneficiary, tokens);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageNext.invested = stageCurrent.invested.add(msg.value);
@@ -72,7 +114,7 @@ contract Crowdsale is StagedCrowdsale {
 			}
 			else {
 				tokens = msg.value.mul(stageCurrent.price);
-				token.reserve(beneficiary, tokens);
+				token.reserveTokens(_beneficiary, tokens);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageCurrent.invested = stageCurrent.invested.add(msg.value);
@@ -82,26 +124,40 @@ contract Crowdsale is StagedCrowdsale {
 		}
 		else {
 			tokens = msg.value.mul(stageCurrent.price);
-			token.reserve(beneficiary, tokens);
+			token.reserveTokens(_beneficiary, tokens);
 
 			totalWeiRaised = totalWeiRaised.add(msg.value);
 			stageCurrent.invested = stageCurrent.invested.add(msg.value);
 		}
 
-		TokenReservation(msg.sender, beneficiary, msg.value, tokens);
+		TokenReservation(msg.sender, _beneficiary, msg.value, tokens);
 		forwardFunds();
 	}
 
-	function verifyAddress(address _addressToVerify) public onlyOwner returns(bool) {
-		require(hasEnded);
-		token.verifyAddressAndTransferTokens(address(this), _addressToVerify);
-		return true;
+
+	/**
+     * @dev Function to verify buyer's address.
+     *
+     * @param _addressToVerify The address of buyer to be verified.
+     */
+	function verifyAddress(address _addressToVerify) public ended onlyOwner {
+		token.verifyAddressAndSendTokens(address(this), _addressToVerify);
 	}
 
+
+	/**
+     * @dev Internal function to forward funds to multisig wallet.
+     */
 	function forwardFunds() internal {
 		multiSigWallet.transfer(msg.value);
 	}
 
+
+	/**
+     * @dev Internal function to check purchase validation.
+     *
+     * @return A boolean value of purchase validation.
+     */
 	function validPurchase() internal returns (bool) {
 		bool withinPeriod = now >= startTime && now <= endTime;
 		bool nonZeroPurchase = msg.value > 0;
