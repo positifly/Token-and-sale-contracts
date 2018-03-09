@@ -74,9 +74,12 @@ contract Crowdsale is StagedCrowdsale {
 		hasEnded = false;
 		isPaused = false;
 
-		addStage(1, 3000, 1); //3rd value is actually div 10
-		addStage(2, 2000, 2); //3rd value is actually div 10
-		addStage(3, 1000, 3); //3rd value is actually div 10
+		addStage(2500, 2000, 10);  //3rd value is actually div 10
+		addStage(3000, 1600, 1);   //3rd value is actually div 10
+		addStage(3500, 1550, 1);   //3rd value is actually div 10
+		addStage(4000, 1500, 1);   //3rd value is actually div 10
+		addStage(4500, 1450, 1);   //3rd value is actually div 10
+		addStage(42500, 1400, 1);  //3rd value is actually div 10
 	}
 
 
