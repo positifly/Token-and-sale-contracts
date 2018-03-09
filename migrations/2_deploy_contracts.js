@@ -4,36 +4,16 @@ module.exports = function(deployer, network, accounts) {
 	return liveDeploy(deployer, accounts);
 };
 
-function latestTime() {
-	return web3.eth.getBlock('latest').timestamp;
-}
-
-const duration = {
-	seconds: function(val) { return val},
-	minutes: function(val) { return val * this.seconds(60) },
-	hours:	 function(val) { return val * this.minutes(60) },
-	days:	 function(val) { return val * this.hours(24) },
-	weeks:	 function(val) { return val * this.days(7) },
-	years:	 function(val) { return val * this.days(365)} 
-};
-
-async function liveDeploy(deployer, accounts) {
-	const BigNumber = web3.BigNumber;
-	const startTime = latestTime() + duration.seconds(10);
-	const endTime =	startTime + duration.weeks(1);
-	// console.log('\n', [startTime, endTime, accounts[0]]);	
-	//(uint256 _startTime, uint256 _endTime, address _wallet) 
-	
-	return deployer.deploy(PULSCrowdsale, startTime, endTime, accounts[0]).then( async () => {
-
-		var Web3 = require('web3');
-		var web3 = new Web3('http://localhost:8545');
-		var encodedConstructorParameters = web3.eth.abi.encodeParameters(['uint256', 'uint256', 'address'], [startTime, endTime, accounts[0]]);
-		console.log('\nPULSCrowdsale encoded constructor parameteres to validate a contract:\n', encodedConstructorParameters, '\n');
-
-
+async function liveDeploy(deployer, accounts) {	
+	return deployer.deploy(PULSCrowdsale, '0x0061b86b28bcc1f9350dacf865ac4a26f7cb8328', { gas: web3.eth.getBlock("pending").gasLimit }).then( async () => {
 		const instance = await PULSCrowdsale.deployed();
 		const token = await instance.token.call();
 		console.log('PULSToken address:\n', token, '\n');
+
+
+		var Web3 = require('web3');
+		var web3 = new Web3('http://localhost:8545');
+		var encodedConstructorParameters = web3.eth.abi.encodeParameters(['address'], ['0x00233e2909c6c8c8Ea29029547067a948965fb55']);
+		console.log('\nPULSCrowdsale encoded constructor parameteres to validate a contract:\n', encodedConstructorParameters, '\n');
 	});
 }

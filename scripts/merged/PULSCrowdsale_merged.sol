@@ -2,7 +2,7 @@ pragma solidity ^0.4.15;
 
 /**
  * @title Ownable
- * @dev The Ownable contract has an owner address, and provides basic authorization control.
+ * @dev The Ownable contract has an owner address, and provides basic authorization control
  * functions, this simplifies the implementation of "user permissions".
  */
 contract Ownable {
@@ -12,7 +12,7 @@ contract Ownable {
      * @dev The Ownable constructor sets the original `owner` of the contract to the sender
      * account.
      */
-	function Ownable() {
+	function Ownable() public {
 		owner = tx.origin;
 	}
 
@@ -31,7 +31,7 @@ contract Ownable {
      *
      * @param _newOwner The address to transfer ownership to.
      */
-	function transferOwnership(address _newOwner) onlyOwner {
+	function transferOwnership(address _newOwner) onlyOwner public {
 		require(_newOwner != address(0));
 		owner = _newOwner;
 	}
@@ -54,28 +54,46 @@ contract BasicERC20Token is Ownable {
 	using SafeMath for uint256;
 
 	uint256 public totalSupply;
-	mapping(address => uint256) balances;
+	mapping (address => uint256) balances;
 	mapping (address => mapping (address => uint256)) allowed;
 
 	event Transfer(address indexed from, address indexed to, uint256 amount);
 	event Approval(address indexed owner, address indexed spender, uint256 amount);
 
-	/**
-     * @dev Function to transfer tokens.
+	
+    /**
+     * @dev Internal function to transfer tokens.
      *
-     * @param _to The address of the recipient.
-     * @param _amount the amount to send.
+     * @param _from Address of the sender.
+     * @param _to Address of the recipient.
+     * @param _amount Amount to send.
      *
-     * @return The boolean value depending on function result.
+     * @return True if the operation was successful.
      */
-	function transfer(address _to, uint256 _amount) public returns (bool) {
+    function _transfer(address _from, address _to, uint256 _amount) internal returns (bool) {
+        require (_from != 0x0);                               // Prevent transfer to 0x0 address
         require (_to != 0x0);                               // Prevent transfer to 0x0 address
-        require (balances[msg.sender] >= _amount);          // Check if the sender has enough
+        require (balances[_from] >= _amount);          // Check if the sender has enough tokens
         require (balances[_to] + _amount > balances[_to]);  // Check for overflows
 
-		balances[msg.sender] = balances[msg.sender].sub(_amount);
-		balances[_to] = balances[_to].add(_amount);
-		Transfer(msg.sender, _to, _amount);
+        balances[_from] = balances[_from].sub(_amount);
+        balances[_to] = balances[_to].add(_amount);
+        Transfer(_from, _to, _amount);
+        
+        return true;
+    }
+
+    /**
+     * @dev Function to transfer tokens.
+     *
+     * @param _to Address of the recipient.
+     * @param _amount Amount to send.
+     *
+     * @return True if the operation was successful.
+     */
+	function transfer(address _to, uint256 _amount) public returns (bool) {
+        _transfer(msg.sender, _to, _amount);
+
 		return true;
 	}
 
@@ -83,9 +101,9 @@ contract BasicERC20Token is Ownable {
 	/**
      * @dev Function to check the amount of tokens for address.
      *
-     * @param _owner address The address which owns the tokens.
+     * @param _owner Address which owns the tokens.
      * 
-     * @return A uint256 specifing the amount of tokens still avaible for the spender.
+     * @return A uint256 specifing the amount of tokens still available to the owner.
      */
 	function balanceOf(address _owner) public constant returns (uint256 balance) {
 		return balances[_owner];
@@ -95,7 +113,7 @@ contract BasicERC20Token is Ownable {
 	/**
      * @dev Function to check the total supply of tokens.
      *
-     * @return The uint256 specifing the amount of tokens which are holding by the contract.
+     * @return The uint256 specifing the amount of tokens which are held by the contract.
      */
 	function getTotalSupply() public constant returns (uint256) {
         return totalSupply;
@@ -105,24 +123,18 @@ contract BasicERC20Token is Ownable {
     /**
      * @dev Transfer tokens from other address.
      *
-     * @param _from The address of the sender.
-     * @param _to The address of the recipient.
-     * @param _amount the amount to send.
+     * @param _from Address of the sender.
+     * @param _to Address of the recipient.
+     * @param _amount Amount to send.
      *
-  	 * @return The boolean value depending on function result.
+  	 * @return True if the operation was successful.
      */
 	function transferFrom(address _from, address _to, uint256 _amount) returns (bool) {
-		require (_from != 0x0);                       // Prevent transfer to 0x0 address
-		require (_to != 0x0);                         // Prevent transfer to 0x0 address
-        require (balances[_from] >= _amount);          // Check if the sender has enough
+        require (allowed[_from][msg.sender] >= _amount);          // Check if the sender has enough
 
-		var _allowance = allowed[_from][msg.sender];
-        require (_allowance > 0);					  // Check if allowed amount is greater then 0
+		_transfer(_from, _to, _amount);
 
-		balances[_to] = balances[_to].add(_amount);
-		balances[_from] = balances[_from].sub(_amount);
-		allowed[_from][msg.sender] = _allowance.sub(_amount);
-		Transfer(_from, _to, _amount);
+        allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
 		return true;
 	}
 
@@ -130,17 +142,19 @@ contract BasicERC20Token is Ownable {
 	/**
      * @dev Aprove the passed address to spend the specified amount of tokens on behalf of msg.sender.
      * 
-     * @param _spender The address which will spend the funds.
-     * @param _amount The amount of tokens to be spent.
+     * @param _spender Address which will spend the funds.
+     * @param _amount Amount of tokens to be spent.
      *
-     * @return The boolean value depending on function result.
+     * @return True if the operation was successful.
      */
 	function approve(address _spender, uint256 _amount) returns (bool) {
 		require (_spender != 0x0);                       // Prevent transfer to 0x0 address
-		require (balances[msg.sender] >= _amount);		 // Check if the allowencer has enough to allow 
-		require ((_amount == 0) || (allowed[msg.sender][_spender] == 0));
+		require (balances[msg.sender] >= _amount);		 // Check if the msg.sender has enough to allow 
+        require (_amount >= 0);
 
-		allowed[msg.sender][_spender] = _amount;
+        if (_amount == 0) allowed[msg.sender][_spender] = _amount;
+        else allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_amount);
+
 		Approval(msg.sender, _spender, _amount);
 		return true;
 	}
@@ -149,10 +163,10 @@ contract BasicERC20Token is Ownable {
     /**
      * @dev Function to check the amount of tokens that an owner allowed to a spender.
      *
-     * @param _owner address The address which owns the funds.
-     * @param _spender address The address which will spend the funds.
+     * @param _owner Address which owns the funds.
+     * @param _spender Address which will spend the funds.
      *
-     * @return The uint256 specifing the amount of tokens still avaible for the spender.
+     * @return The uint256 specifing the amount of tokens still available for the spender.
      */
 	function allowance(address _owner, address _spender) public constant returns (uint256 remaining) {
 		return allowed[_owner][_spender];
@@ -161,25 +175,40 @@ contract BasicERC20Token is Ownable {
 
 /**
  * @title PULS token
- * @dev Extended ERC20 token.
+ * @dev Extends ERC20 token.
  */
 contract PULSToken is BasicERC20Token {
 	// Public variables of the token
-	string public constant name = 'PulsToken';
+	string public constant name = 'PULS Token';
 	string public constant symbol = 'PULS';
 	uint8 public constant decimals = 18;
 	uint256 public constant INITIAL_SUPPLY = 88888888000000000000000000;
 
 	address public crowdsaleAddress;
 
-	// Public structure of reserved tokens.
+	// Public structure to support token reservation.
 	struct Reserve {
-        uint256 amount;
-        bool verified;
+        uint256 pulsAmount;
+        uint256 collectedEther;
     }
 
 	mapping (address => Reserve) reserved;
 
+	// Public structure to record locked tokens for a specific lock.
+	struct Lock {
+		uint256 amount;
+		uint256 startTime;	// in seconds since 01.01.1970
+		uint256 timeToLock; // in seconds
+		bytes32 pulseLockHash;
+	}
+	
+	// Public list of locked tokens for a specific address.
+	struct lockList{
+		Lock[] lockedTokens;
+	}
+	
+	// Public list of lockLists.
+	mapping (address => lockList) addressLocks;
 
 	/**
      * @dev Throws if called by any account other than the crowdsale address.
@@ -189,11 +218,14 @@ contract PULSToken is BasicERC20Token {
 		_;
 	}
 
-	event Verify(address indexed verifiedAddress, uint256 amount);
+	event TokenReservation(address indexed beneficiary, uint256 amount);
+	event RevertingReservation(address addressToRevert);
+	event TokenLocking(address addressToLock, uint256 amount, uint256 timeToLock);
+	event TokenUnlocking(address addressToUnlock, uint256 amount);
 
 
 	/**
-     * @dev The PULSToken constructor sets the initial supply of tokens to the crowdsale address
+     * @dev The PULS token constructor sets the initial supply of tokens to the crowdsale address
      * account.
      */
 	function PULSToken() public {
@@ -207,24 +239,114 @@ contract PULSToken is BasicERC20Token {
 
 
 	/**
+     * @dev Payable function.
+     */
+	function () external payable {
+	}
+
+
+	/**
+     * @dev Function to check reserved amount of tokens for address.
+     *
+     * @param _owner Address of owner of the tokens.
+     *
+     * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
+     */
+	function reserveOf(address _owner) public constant returns (uint256) {
+		return reserved[_owner].pulsAmount;
+	}
+
+
+	/**
+     * @dev Function to check reserved amount of tokens for address.
+     *
+     * @param _buyer Address of buyer of the tokens.
+     *
+     * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
+     */
+	function collectedEtherFrom(address _buyer) public constant returns (uint256) {
+		return reserved[_buyer].collectedEther;
+	}
+
+
+	/**
+     * @dev Function to get number of locks for an address.
+     *
+     * @param _address Address who owns locked tokens.
+     *
+     * @return The uint256 length of array.
+     */
+	function getAddressLockedLength(address _address) public constant returns(uint256 length) {
+	    return addressLocks[_address].lockedTokens.length;
+	}
+
+
+	/**
+     * @dev Function to get locked tokens amount for specific address for specific lock.
+     *
+     * @param _address Address of owner of locked tokens.
+     * @param _index Index of specific lock.
+     *
+     * @return The uint256 specifing the amount of locked tokens.
+     */
+	function getLockedStructAmount(address _address, uint256 _index) public constant returns(uint256 amount) {
+	    return addressLocks[_address].lockedTokens[_index].amount;
+	}
+
+
+	/**
+     * @dev Function to get start time of lock for specific address.
+     *
+     * @param _address Address of owner of locked tokens.
+     * @param _index Index of specific lock.
+     *
+     * @return The uint256 specifing the start time of lock in seconds.
+     */
+	function getLockedStructStartTime(address _address, uint256 _index) public constant returns(uint256 startTime) {
+	    return addressLocks[_address].lockedTokens[_index].startTime;
+	}
+
+
+	/**
+     * @dev Function to get duration time of lock for specific address.
+     *
+     * @param _address Address of owner of locked tokens.
+     * @param _index Index of specific lock.
+     *
+     * @return The uint256 specifing the duration time of lock in seconds.
+     */
+	function getLockedStructTimeToLock(address _address, uint256 _index) public constant returns(uint256 timeToLock) {
+	    return addressLocks[_address].lockedTokens[_index].timeToLock;
+	}
+
+	
+	/**
+     * @dev Function to get pulse hash for specific address for specific lock.
+     *
+     * @param _address Address of owner of locked tokens.
+     * @param _index Index of specific lock.
+     *
+     * @return The bytes32 specifing the pulse hash.
+     */
+	function getLockedStructPulseLockHash(address _address, uint256 _index) public constant returns(bytes32 pulseLockHash) {
+	    return addressLocks[_address].lockedTokens[_index].pulseLockHash;
+	}
+
+
+	/**
      * @dev Function to send tokens after verifing KYC form.
      *
-     * @param _crowdsaleWallet The address of the crowdsale wallet.
-     * @param _beneficiary The address of tokens receiver.
-     * @param _amount The amount of tokens to send.
+     * @param _beneficiary Address of receiver of tokens.
      *
-     * @return The boolean value depending on function result.
+     * @return True if the operation was successful.
      */
-	function sendTokens(address _crowdsaleWallet, address _beneficiary, uint256 _amount) internal onlyCrowdsaleAddress returns (bool) {
-		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
-		require (balances[_crowdsaleWallet] >= _amount);
+	function sendTokens(address _beneficiary) onlyOwner returns (bool) {
+		require (reserved[_beneficiary].pulsAmount > 0);		 // Check if reserved tokens for _beneficiary address is greater then 0
 
-		balances[_crowdsaleWallet] = balances[_crowdsaleWallet].sub(_amount);
-		balances[_beneficiary] = balances[_beneficiary].add(_amount);
+		_transfer(crowdsaleAddress, _beneficiary, reserved[_beneficiary].pulsAmount);
 
-		reserved[_beneficiary].amount = 0;
+		reserved[_beneficiary].pulsAmount = 0;
 
-		Transfer(_crowdsaleWallet, _beneficiary, _amount);
 		return true;
 	}
 
@@ -232,54 +354,104 @@ contract PULSToken is BasicERC20Token {
 	/**
      * @dev Function to reserve tokens for buyer after sending ETH to crowdsale address.
      *
-     * @param _beneficiary The address of tokens reserver.
-     * @param _amount The amount of tokens to reserve.
+     * @param _beneficiary Address of reserver of tokens.
+     * @param _pulsAmount Amount of tokens to reserve.
+     * @param _eth Amount of eth sent in transaction.
      *
-     * @return The boolean value depending on function result.
+     * @return True if the operation was successful.
      */
-	function reserveTokens(address _beneficiary, uint256 _amount) public onlyCrowdsaleAddress returns (bool) {
+	function reserveTokens(address _beneficiary, uint256 _pulsAmount, uint256 _eth) onlyCrowdsaleAddress public returns (bool) {
 		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
-		require (totalSupply >= _amount);               	 // Check if suchTokens amount left
+		require (totalSupply >= _pulsAmount);                // Check if such tokens amount left
 
-		totalSupply = totalSupply.sub(_amount);
-		reserved[_beneficiary].amount = reserved[_beneficiary].amount.add(_amount);
-		reserved[_beneficiary].verified = false;
+		totalSupply = totalSupply.sub(_pulsAmount);
+		reserved[_beneficiary].pulsAmount = reserved[_beneficiary].pulsAmount.add(_pulsAmount);
+		reserved[_beneficiary].collectedEther = reserved[_beneficiary].collectedEther.add(_eth);
+
+		TokenReservation(_beneficiary, _pulsAmount);
 		return true;
 	}
 
 
 	/**
-     * @dev Function to verify buyer address and send tokens to this address calling internal function sendTokens.
+     * @dev Function to revert reservation for some address.
      *
-     * @param _crowdsaleWallet The address of the crowdsale wallet.
-     * @param _addressToVerify The addrerss to verify.
+     * @param _addressToRevert Address to which collected ETH will be returned.
      *
-     * @return The boolean value depending on function result.
+     * @return True if the operation was successful.
      */
-	function verifyAddressAndSendTokens(address _crowdsaleWallet, address _addressToVerify) public onlyCrowdsaleAddress returns (bool) {
-		require (_addressToVerify != 0x0);                       // Prevent transfer to 0x0 address
-		require(reserved[_addressToVerify].amount > 0);
-		require(reserved[_addressToVerify].verified == false);
+	function revertReservation(address _addressToRevert) onlyOwner public returns (bool) {
+		require (_addressToRevert != 0x0);                       // Prevent transfer to 0x0 address
+		require (reserved[_addressToRevert].pulsAmount > 0);	
 
-		reserved[_addressToVerify].verified = true;
-		Verify(_addressToVerify, reserved[_addressToVerify].amount);
-		sendTokens(_crowdsaleWallet, _addressToVerify, reserved[_addressToVerify].amount);	
+		totalSupply = totalSupply.add(reserved[_addressToRevert].pulsAmount);
+		reserved[_addressToRevert].pulsAmount = 0;
+
+		_addressToRevert.transfer(reserved[_addressToRevert].collectedEther - (20000000000 * 21000));
+		reserved[_addressToRevert].collectedEther = 0;
+
+		RevertingReservation(_addressToRevert);
 		return true;
 	}
 
+
 	/**
-     * @dev Function to check reserved amount of tokens for address.
+     * @dev Function to lock tokens for some period of time.
      *
-     * @return The uint256 specifing the amount of tokens which are holding by this address.
+     * @param _amount Amount of locked tokens.
+     * @param _minutesToLock Days tokens will be locked.
+     * @param _pulseLockHash Hash of locked pulse.
+     *
+     * @return True if the operation was successful.
      */
-	function reserveOf(address _owner) public constant returns (uint256) {
-		return reserved[_owner].amount;
+	function lockTokens(uint256 _amount, uint256 _minutesToLock, bytes32 _pulseLockHash) public returns (bool){
+		require(balances[msg.sender] >= _amount);
+
+		Lock memory lockStruct;
+        lockStruct.amount = _amount;
+        lockStruct.startTime = now;
+        lockStruct.timeToLock = _minutesToLock * 1 minutes;
+        lockStruct.pulseLockHash = _pulseLockHash;
+
+        addressLocks[msg.sender].lockedTokens.push(lockStruct);
+        balances[msg.sender] = balances[msg.sender].sub(_amount);
+
+        TokenLocking(msg.sender, _amount, _minutesToLock);
+        return true;
 	}
 
-	// function freezeTokens(uint256 _amount){
-	// 	require(msg.sender != 0x0);
-	// 	require(balances[msg.sender] >= _amount);
-	// }
+
+	/**
+     * @dev Function to unlock tokens for some period of time.
+     *
+     * @param _addressToUnlock Addrerss of person with locked tokens.
+     *
+     * @return True if the operation was successful.
+     */
+	function unlockTokens(address _addressToUnlock) public returns (bool){
+		uint256 i = 0;
+		while(i < addressLocks[_addressToUnlock].lockedTokens.length) {
+			if (now > addressLocks[_addressToUnlock].lockedTokens[i].startTime + addressLocks[_addressToUnlock].lockedTokens[i].timeToLock) {
+
+				balances[_addressToUnlock] = balances[_addressToUnlock].add(addressLocks[_addressToUnlock].lockedTokens[i].amount);
+				TokenUnlocking(_addressToUnlock, addressLocks[_addressToUnlock].lockedTokens[i].amount);
+
+				if (i < addressLocks[_addressToUnlock].lockedTokens.length) {
+					for (uint256 j = i; j < addressLocks[_addressToUnlock].lockedTokens.length - 1; j++){
+			            addressLocks[_addressToUnlock].lockedTokens[j] = addressLocks[_addressToUnlock].lockedTokens[j + 1];
+			        }
+				}
+		        delete addressLocks[_addressToUnlock].lockedTokens[addressLocks[_addressToUnlock].lockedTokens.length - 1];
+				
+				addressLocks[_addressToUnlock].lockedTokens.length = addressLocks[_addressToUnlock].lockedTokens.length.sub(1);
+			}
+			else {
+				i = i.add(1);
+			}
+		}
+
+        return true;
+	}
 }
 
 
@@ -328,6 +500,7 @@ contract StagedCrowdsale is Ownable {
     struct Stage {
         uint256 hardcap;
         uint256 price;
+        uint256 minInvestment;
         uint256 invested;
         uint256 closed;
     }
@@ -336,9 +509,9 @@ contract StagedCrowdsale is Ownable {
 
 
     /**
-     * @dev Function to get current stage number.
+     * @dev Function to get the current stage number.
      * 
-     * @return A uint256 specifing the currnet stage number.
+     * @return A uint256 specifing the current stage number.
      */
     function getCurrentStage() public constant returns(uint256) {
         for(uint256 i=0; i < stages.length; i++) {
@@ -351,15 +524,33 @@ contract StagedCrowdsale is Ownable {
 
 
     /**
-     * @dev Function add the stage to the crowdsale.
+     * @dev Function to add the stage to the crowdsale.
      *
      * @param _hardcap The hardcap of the stage.
      * @param _price The amount of tokens you will receive per 1 ETH for this stage.
      */
-    function addStage(uint256 _hardcap, uint256 _price) public onlyOwner {
+    function addStage(uint256 _hardcap, uint256 _price, uint256 _minInvestment) onlyOwner public {
         require(_hardcap > 0 && _price > 0);
-        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, 0, 0);
+        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, _minInvestment.mul(1 ether).div(10), 0, 0);
         stages.push(stage);
+    }
+
+
+    /**
+     * @dev Function to close the stage manually.
+     *
+     * @param _stageNumber Stage number to close.
+     */
+    function closeStage(uint256 _stageNumber) onlyOwner public {
+        require(stages[_stageNumber].closed == 0);
+        if (_stageNumber != 0) require(stages[_stageNumber - 1].closed != 0);
+
+        stages[_stageNumber].closed = now;
+        stages[_stageNumber].invested = stages[_stageNumber].hardcap;
+
+        if (_stageNumber + 1 <= stages.length - 1) {
+            stages[_stageNumber + 1].invested = stages[_stageNumber].hardcap;
+        }
     }
 }
 
@@ -373,13 +564,13 @@ contract Crowdsale is StagedCrowdsale {
 	PULSToken public token;
 
 	// Public variables of the crowdsale
-	uint256 public startTime;
-	uint256 public endTime;
 	address public multiSigWallet; 	// address where funds are collected
 	uint256 public totalWeiRaised;	// amount of raised money in wei
-	bool public hasEnded;	// amount of raised money in wei
+	bool public hasEnded;
+	bool public isPaused;	
 
 	event TokenReservation(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
+	event ForwardingFunds(uint256 value);
 
 
 	/**
@@ -401,28 +592,42 @@ contract Crowdsale is StagedCrowdsale {
 
 
 	/**
-     * @dev The Crowdsale constructor sets the start time, end time and multisig wallet for forwanding funds.
+     * @dev Throws if crowdsale has not ended.
+     */
+	modifier notPaused() {
+		require(!isPaused);
+		_;
+	}
+
+
+	/**
+     * @dev Throws if crowdsale is not paused.
+     */
+	modifier paused() {
+		require(isPaused);
+		_;
+	}
+
+
+	/**
+     * @dev The Crowdsale constructor sets the multisig wallet for forwanding funds.
      * Adds stages to the crowdsale. Initialize PULS tokens.
      *
-     * @param _startTime The start time of the crowdsale.
-     * @param _endTime The end time of the crowdsale.
-     * @param _wallet The address of multisig lawyers address.
+     * @param _wallet Address of multisig wallet.
      */
-	function Crowdsale(uint256 _startTime, uint256 _endTime, address _wallet) public {
-		require(_startTime >= now);
-		require(_endTime >= _startTime);
+	function Crowdsale(address _wallet) public {
 		require(_wallet != address(0));
 
 		token = createTokenContract();
-		startTime = _startTime;
-		endTime = _endTime;
+
 		multiSigWallet = _wallet;
 		totalWeiRaised = 0;
 		hasEnded = false;
+		isPaused = false;
 
-		addStage(1,1000);
-		addStage(2,2000);
-		addStage(3,3000);
+		addStage(1, 3000, 1); //3rd value is actually div 10
+		addStage(2, 2000, 2); //3rd value is actually div 10
+		addStage(3, 1000, 3); //3rd value is actually div 10
 	}
 
 
@@ -431,7 +636,7 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @return PULSToken The instance of PULS token contract.
      */
-	function createTokenContract() internal onlyOwner returns (PULSToken) {
+	function createTokenContract() internal returns (PULSToken) {
 		return new PULSToken();
 	}
 
@@ -449,23 +654,25 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @param _beneficiary The address of the buyer.
      */
-	function buyTokens(address _beneficiary) payable notEnded {
-		require(validPurchase());
+	function buyTokens(address _beneficiary) payable notEnded notPaused {
+		require(msg.value > 0);
 		
 		uint256 stageIndex = getCurrentStage();
 		Stage storage stageCurrent = stages[stageIndex];
 
+		require(msg.value >= stageCurrent.minInvestment);
+
 		uint256 tokens;
 
-		// if put us in new stage - receives with next stage price
-		if (totalWeiRaised.add(msg.value) >= stageCurrent.hardcap){
+		// if puts us in new stage - receives with next stage price
+		if (stageCurrent.invested.add(msg.value) >= stageCurrent.hardcap){
 			stageCurrent.closed = now;
 
 			if (stageIndex + 1 <= stages.length - 1) {
 				Stage storage stageNext = stages[stageIndex + 1];
 
-				tokens = msg.value.mul(stageNext.price);
-				token.reserveTokens(_beneficiary, tokens);
+				tokens = msg.value.mul(stageCurrent.price);
+				token.reserveTokens(_beneficiary, tokens, msg.value);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageNext.invested = stageCurrent.invested.add(msg.value);
@@ -474,7 +681,7 @@ contract Crowdsale is StagedCrowdsale {
 			}
 			else {
 				tokens = msg.value.mul(stageCurrent.price);
-				token.reserveTokens(_beneficiary, tokens);
+				token.reserveTokens(_beneficiary, tokens, msg.value);
 
 				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageCurrent.invested = stageCurrent.invested.add(msg.value);
@@ -484,7 +691,7 @@ contract Crowdsale is StagedCrowdsale {
 		}
 		else {
 			tokens = msg.value.mul(stageCurrent.price);
-			token.reserveTokens(_beneficiary, tokens);
+			token.reserveTokens(_beneficiary, tokens, msg.value);
 
 			totalWeiRaised = totalWeiRaised.add(msg.value);
 			stageCurrent.invested = stageCurrent.invested.add(msg.value);
@@ -496,12 +703,14 @@ contract Crowdsale is StagedCrowdsale {
 
 
 	/**
-     * @dev Function to verify buyer's address.
+     * @dev Function to buy tokens - reserve calculated amount of tokens.
      *
-     * @param _addressToVerify The address of buyer to be verified.
+     * @param _beneficiary The address of the buyer.
      */
-	function verifyAddress(address _addressToVerify) public ended onlyOwner {
-		token.verifyAddressAndSendTokens(address(this), _addressToVerify);
+	function privatePresaleTokenReservation(address _beneficiary, uint256 _amount) onlyOwner public {
+		require (_beneficiary != 0x0);					// Prevent transfer to 0x0 address
+
+		token.reserveTokens(_beneficiary, _amount, 0);
 	}
 
 
@@ -510,37 +719,57 @@ contract Crowdsale is StagedCrowdsale {
      */
 	function forwardFunds() internal {
 		multiSigWallet.transfer(msg.value);
+		ForwardingFunds(msg.value);
 	}
 
 
 	/**
-     * @dev Internal function to check purchase validation.
+     * @dev Function to finish the crowdsale.
      *
-     * @return A boolean value of purchase validation.
-     */
-	function validPurchase() internal returns (bool) {
-		bool withinPeriod = now >= startTime && now <= endTime;
-		bool nonZeroPurchase = msg.value > 0;
-		return withinPeriod && nonZeroPurchase;
+     * @return True if the operation was successful.
+     */ 
+	function finishCrowdsale() onlyOwner notEnded public returns (bool) {
+		hasEnded = true;
+		return true;
+	}
+
+
+	/**
+     * @dev Function to pause the crowdsale.
+     *
+     * @return True if the operation was successful.
+     */ 
+	function pauseCrowdsale() onlyOwner notEnded notPaused public returns (bool) {
+		isPaused = true;
+		return true;
+	}
+
+
+	/**
+     * @dev Function to unpause the crowdsale.
+     *
+     * @return True if the operation was successful.
+     */ 
+	function unpauseCrowdsale() onlyOwner notEnded paused public returns (bool) {
+		isPaused = false;
+		return true;
 	}
 }
 
 
 
 /**
- * @title Puls crowdsale.
+ * @title PULS Token crowdsale.
  * @dev Contract to deploy into blockchain.
  */
 contract PULSCrowdsale is Crowdsale {
 
 	/**
-     * @dev The PULS Crowdsale constructor initialize Crowdsale smart contracts.
+     * @dev The PULS Crowdsale constructor initializes Crowdsale smart contract.
      *
-     * @param _startTime The start time of the crowdsale.
-     * @param _endTime The end time of the crowdsale.
-     * @param _wallet The address of multisig lawyers address.
+     * @param _wallet The address of multisig wallet.
      */
-    function PULSCrowdsale(uint256 _startTime, uint256 _endTime, address _wallet) Crowdsale(_startTime, _endTime, _wallet) {
+    function PULSCrowdsale(address _wallet) Crowdsale(_wallet) {
 
     }
 }
