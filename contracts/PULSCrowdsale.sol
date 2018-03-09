@@ -13,7 +13,7 @@ contract PULSCrowdsale is Crowdsale {
      *
      * @param _wallet The address of multisig wallet.
      */
-    function PULSCrowdsale(address _wallet) Crowdsale(_wallet) {
+    function PULSCrowdsale() Crowdsale() {
 
     }
 }

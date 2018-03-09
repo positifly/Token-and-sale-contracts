@@ -64,12 +64,12 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @param _wallet Address of multisig wallet.
      */
-	function Crowdsale(address _wallet) public {
+	function Crowdsale() public {
 		require(_wallet != address(0));
 
 		token = createTokenContract();
 
-		multiSigWallet = _wallet;
+		multiSigWallet = '0x00E9c72F684De1C49E45B1c9403d4DD152f93C32';
 		totalWeiRaised = 0;
 		hasEnded = false;
 		isPaused = false;
@@ -163,7 +163,7 @@ contract Crowdsale is StagedCrowdsale {
 		require (_beneficiary != 0x0);					// Prevent transfer to 0x0 address
 
 		token.reserveTokens(_beneficiary, _amount, 0);
-		TokenReservation(msg.sender, _beneficiary, msg.value, _amount);
+		TokenReservation(msg.sender, _beneficiary, 0, _amount);
 	}
 
 
