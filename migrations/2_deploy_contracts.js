@@ -5,7 +5,7 @@ module.exports = function(deployer, network, accounts) {
 };
 
 async function liveDeploy(deployer, accounts) {	
-	return deployer.deploy(PULSCrowdsale, '0x0061b86b28bcc1f9350dacf865ac4a26f7cb8328', { gas: web3.eth.getBlock("pending").gasLimit }).then( async () => {
+	return deployer.deploy(PULSCrowdsale, { gas: web3.eth.getBlock("pending").gasLimit }).then( async () => {
 		const instance = await PULSCrowdsale.deployed();
 		const token = await instance.token.call();
 		console.log('PULSToken address:\n', token, '\n');
