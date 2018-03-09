@@ -10,8 +10,6 @@ contract PULSCrowdsale is Crowdsale {
 
 	/**
      * @dev The PULS Crowdsale constructor initializes Crowdsale smart contract.
-     *
-     * @param _wallet The address of multisig wallet.
      */
     function PULSCrowdsale() Crowdsale() {
 

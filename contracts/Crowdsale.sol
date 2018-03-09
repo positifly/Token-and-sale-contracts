@@ -61,12 +61,8 @@ contract Crowdsale is StagedCrowdsale {
 	/**
      * @dev The Crowdsale constructor sets the multisig wallet for forwanding funds.
      * Adds stages to the crowdsale. Initialize PULS tokens.
-     *
-     * @param _wallet Address of multisig wallet.
      */
 	function Crowdsale() public {
-		require(_wallet != address(0));
-
 		token = createTokenContract();
 
 		multiSigWallet = '0x00E9c72F684De1C49E45B1c9403d4DD152f93C32';
