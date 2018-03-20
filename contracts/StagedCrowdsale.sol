@@ -1,4 +1,4 @@
-pragma solidity ^0.4.15;
+pragma solidity ^0.4.21;
 
 import './Ownable.sol';
 import './SafeMath.sol';
@@ -28,7 +28,7 @@ contract StagedCrowdsale is Ownable {
      * 
      * @return A uint256 specifing the current stage number.
      */
-    function getCurrentStage() public constant returns(uint256) {
+    function getCurrentStage() public view returns(uint256) {
         for(uint256 i=0; i < stages.length; i++) {
             if(stages[i].closed == 0) {
                 return i;
@@ -44,9 +44,9 @@ contract StagedCrowdsale is Ownable {
      * @param _hardcap The hardcap of the stage.
      * @param _price The amount of tokens you will receive per 1 ETH for this stage.
      */
-    function addStage(uint256 _hardcap, uint256 _price, uint256 _minInvestment) onlyOwner public {
+    function addStage(uint256 _hardcap, uint256 _price, uint256 _minInvestment, uint _invested) onlyOwner public {
         require(_hardcap > 0 && _price > 0);
-        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, _minInvestment.mul(1 ether).div(10), 0, 0);
+        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, _minInvestment.mul(1 ether).div(10), _invested.mul(1 ether), 0);
         stages.push(stage);
     }
 
@@ -66,5 +66,19 @@ contract StagedCrowdsale is Ownable {
         if (_stageNumber + 1 <= stages.length - 1) {
             stages[_stageNumber + 1].invested = stages[_stageNumber].hardcap;
         }
+    }
+
+
+    /**
+     * @dev Function to remove all stages.
+     *
+     * @return True if the operation was successful.
+    */
+    function removeStages() onlyOwner public returns (bool) {
+        require(stages.length > 0);
+
+        stages.length = 0;
+
+        return true;
     }
 }

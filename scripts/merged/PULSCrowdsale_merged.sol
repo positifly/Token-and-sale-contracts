@@ -1,4 +1,4 @@
-pragma solidity ^0.4.15;
+pragma solidity ^0.4.21;
 
 /**
  * @title Ownable
@@ -44,23 +44,56 @@ contract Ownable {
 
 
 
-
-
 /**
  * @title BasicERC20 token.
  * @dev Basic version of ERC20 token with allowances.
  */
 contract BasicERC20Token is Ownable {
-	using SafeMath for uint256;
+    using SafeMath for uint256;
 
-	uint256 public totalSupply;
-	mapping (address => uint256) balances;
-	mapping (address => mapping (address => uint256)) allowed;
+    uint256 public totalSupply;
+    mapping (address => uint256) balances;
+    mapping (address => mapping (address => uint256)) allowed;
 
-	event Transfer(address indexed from, address indexed to, uint256 amount);
-	event Approval(address indexed owner, address indexed spender, uint256 amount);
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
-	
+
+    /**
+     * @dev Function to check the amount of tokens for address.
+     *
+     * @param _owner Address which owns the tokens.
+     * 
+     * @return A uint256 specifing the amount of tokens still available to the owner.
+     */
+    function balanceOf(address _owner) public view returns (uint256 balance) {
+        return balances[_owner];
+    }
+
+
+    /**
+     * @dev Function to check the total supply of tokens.
+     *
+     * @return The uint256 specifing the amount of tokens which are held by the contract.
+     */
+    function getTotalSupply() public view returns (uint256) {
+        return totalSupply;
+    }
+
+
+    /**
+     * @dev Function to check the amount of tokens that an owner allowed to a spender.
+     *
+     * @param _owner Address which owns the funds.
+     * @param _spender Address which will spend the funds.
+     *
+     * @return The uint256 specifing the amount of tokens still available for the spender.
+     */
+    function allowance(address _owner, address _spender) public view returns (uint256 remaining) {
+        return allowed[_owner][_spender];
+    }
+
+
     /**
      * @dev Internal function to transfer tokens.
      *
@@ -76,12 +109,20 @@ contract BasicERC20Token is Ownable {
         require (balances[_from] >= _amount);          // Check if the sender has enough tokens
         require (balances[_to] + _amount > balances[_to]);  // Check for overflows
 
+        uint256 length;
+        assembly {
+            length := extcodesize(_to)
+        }
+        require (length == 0);
+
         balances[_from] = balances[_from].sub(_amount);
         balances[_to] = balances[_to].add(_amount);
-        Transfer(_from, _to, _amount);
+
+        emit Transfer(_from, _to, _amount);
         
         return true;
     }
+
 
     /**
      * @dev Function to transfer tokens.
@@ -91,32 +132,10 @@ contract BasicERC20Token is Ownable {
      *
      * @return True if the operation was successful.
      */
-	function transfer(address _to, uint256 _amount) public returns (bool) {
+    function transfer(address _to, uint256 _amount) public returns (bool) {
         _transfer(msg.sender, _to, _amount);
 
-		return true;
-	}
-
-
-	/**
-     * @dev Function to check the amount of tokens for address.
-     *
-     * @param _owner Address which owns the tokens.
-     * 
-     * @return A uint256 specifing the amount of tokens still available to the owner.
-     */
-	function balanceOf(address _owner) public constant returns (uint256 balance) {
-		return balances[_owner];
-	}
-
-
-	/**
-     * @dev Function to check the total supply of tokens.
-     *
-     * @return The uint256 specifing the amount of tokens which are held by the contract.
-     */
-	function getTotalSupply() public constant returns (uint256) {
-        return totalSupply;
+        return true;
     }
 
 
@@ -127,19 +146,19 @@ contract BasicERC20Token is Ownable {
      * @param _to Address of the recipient.
      * @param _amount Amount to send.
      *
-  	 * @return True if the operation was successful.
+     * @return True if the operation was successful.
      */
-	function transferFrom(address _from, address _to, uint256 _amount) returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _amount) public returns (bool) {
         require (allowed[_from][msg.sender] >= _amount);          // Check if the sender has enough
 
-		_transfer(_from, _to, _amount);
+        _transfer(_from, _to, _amount);
 
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
-		return true;
-	}
+        return true;
+    }
 
 
-	/**
+    /**
      * @dev Aprove the passed address to spend the specified amount of tokens on behalf of msg.sender.
      * 
      * @param _spender Address which will spend the funds.
@@ -147,30 +166,17 @@ contract BasicERC20Token is Ownable {
      *
      * @return True if the operation was successful.
      */
-	function approve(address _spender, uint256 _amount) returns (bool) {
-		require (_spender != 0x0);                       // Prevent transfer to 0x0 address
-		require (balances[msg.sender] >= _amount);		 // Check if the msg.sender has enough to allow 
+    function approve(address _spender, uint256 _amount) public returns (bool) {
+        require (_spender != 0x0);                       // Prevent transfer to 0x0 address
         require (_amount >= 0);
+        require (balances[msg.sender] >= _amount);       // Check if the msg.sender has enough to allow 
 
         if (_amount == 0) allowed[msg.sender][_spender] = _amount;
         else allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_amount);
 
-		Approval(msg.sender, _spender, _amount);
-		return true;
-	}
-
-
-    /**
-     * @dev Function to check the amount of tokens that an owner allowed to a spender.
-     *
-     * @param _owner Address which owns the funds.
-     * @param _spender Address which will spend the funds.
-     *
-     * @return The uint256 specifing the amount of tokens still available for the spender.
-     */
-	function allowance(address _owner, address _spender) public constant returns (uint256 remaining) {
-		return allowed[_owner][_spender];
-	}
+        emit Approval(msg.sender, _spender, _amount);
+        return true;
+    }
 }
 
 /**
@@ -181,7 +187,7 @@ contract PULSToken is BasicERC20Token {
 	// Public variables of the token
 	string public constant name = 'PULS Token';
 	string public constant symbol = 'PULS';
-	uint8 public constant decimals = 18;
+	uint256 public constant decimals = 18;
 	uint256 public constant INITIAL_SUPPLY = 88888888000000000000000000;
 
 	address public crowdsaleAddress;
@@ -218,10 +224,10 @@ contract PULSToken is BasicERC20Token {
 		_;
 	}
 
-	event TokenReservation(address indexed beneficiary, uint256 amount);
-	event RevertingReservation(address addressToRevert);
-	event TokenLocking(address addressToLock, uint256 amount, uint256 timeToLock);
-	event TokenUnlocking(address addressToUnlock, uint256 amount);
+	event TokenReservation(address indexed beneficiary, uint256 sendEther, uint256 indexed pulsAmount, uint256 reserveTypeId);
+	event RevertingReservation(address indexed addressToRevert);
+	event TokenLocking(address indexed addressToLock, uint256 indexed amount, uint256 timeToLock);
+	event TokenUnlocking(address indexed addressToUnlock, uint256 indexed amount);
 
 
 	/**
@@ -234,7 +240,7 @@ contract PULSToken is BasicERC20Token {
 		
 		crowdsaleAddress = msg.sender;
 
-		Transfer(0x0, msg.sender, INITIAL_SUPPLY);
+		emit Transfer(0x0, msg.sender, INITIAL_SUPPLY);
 	}
 
 
@@ -252,7 +258,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
      */
-	function reserveOf(address _owner) public constant returns (uint256) {
+	function reserveOf(address _owner) public view returns (uint256) {
 		return reserved[_owner].pulsAmount;
 	}
 
@@ -264,7 +270,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
      */
-	function collectedEtherFrom(address _buyer) public constant returns (uint256) {
+	function collectedEtherFrom(address _buyer) public view returns (uint256) {
 		return reserved[_buyer].collectedEther;
 	}
 
@@ -276,7 +282,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 length of array.
      */
-	function getAddressLockedLength(address _address) public constant returns(uint256 length) {
+	function getAddressLockedLength(address _address) public view returns(uint256 length) {
 	    return addressLocks[_address].lockedTokens.length;
 	}
 
@@ -289,7 +295,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of locked tokens.
      */
-	function getLockedStructAmount(address _address, uint256 _index) public constant returns(uint256 amount) {
+	function getLockedStructAmount(address _address, uint256 _index) public view returns(uint256 amount) {
 	    return addressLocks[_address].lockedTokens[_index].amount;
 	}
 
@@ -302,7 +308,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the start time of lock in seconds.
      */
-	function getLockedStructStartTime(address _address, uint256 _index) public constant returns(uint256 startTime) {
+	function getLockedStructStartTime(address _address, uint256 _index) public view returns(uint256 startTime) {
 	    return addressLocks[_address].lockedTokens[_index].startTime;
 	}
 
@@ -315,7 +321,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the duration time of lock in seconds.
      */
-	function getLockedStructTimeToLock(address _address, uint256 _index) public constant returns(uint256 timeToLock) {
+	function getLockedStructTimeToLock(address _address, uint256 _index) public view returns(uint256 timeToLock) {
 	    return addressLocks[_address].lockedTokens[_index].timeToLock;
 	}
 
@@ -328,7 +334,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The bytes32 specifing the pulse hash.
      */
-	function getLockedStructPulseLockHash(address _address, uint256 _index) public constant returns(bytes32 pulseLockHash) {
+	function getLockedStructPulseLockHash(address _address, uint256 _index) public view returns(bytes32 pulseLockHash) {
 	    return addressLocks[_address].lockedTokens[_index].pulseLockHash;
 	}
 
@@ -340,7 +346,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return True if the operation was successful.
      */
-	function sendTokens(address _beneficiary) onlyOwner returns (bool) {
+	function sendTokens(address _beneficiary) onlyOwner public returns (bool) {
 		require (reserved[_beneficiary].pulsAmount > 0);		 // Check if reserved tokens for _beneficiary address is greater then 0
 
 		_transfer(crowdsaleAddress, _beneficiary, reserved[_beneficiary].pulsAmount);
@@ -360,15 +366,15 @@ contract PULSToken is BasicERC20Token {
      *
      * @return True if the operation was successful.
      */
-	function reserveTokens(address _beneficiary, uint256 _pulsAmount, uint256 _eth) onlyCrowdsaleAddress public returns (bool) {
-		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
-		require (totalSupply >= _pulsAmount);                // Check if such tokens amount left
+	function reserveTokens(address _beneficiary, uint256 _pulsAmount, uint256 _eth, uint256 _reserveTypeId) onlyCrowdsaleAddress public returns (bool) {
+		require (_beneficiary != 0x0);					// Prevent transfer to 0x0 address
+		require (totalSupply >= _pulsAmount);           // Check if such tokens amount left
 
 		totalSupply = totalSupply.sub(_pulsAmount);
 		reserved[_beneficiary].pulsAmount = reserved[_beneficiary].pulsAmount.add(_pulsAmount);
 		reserved[_beneficiary].collectedEther = reserved[_beneficiary].collectedEther.add(_eth);
 
-		TokenReservation(_beneficiary, _pulsAmount);
+		emit TokenReservation(_beneficiary, _eth, _pulsAmount, _reserveTypeId);
 		return true;
 	}
 
@@ -381,7 +387,6 @@ contract PULSToken is BasicERC20Token {
      * @return True if the operation was successful.
      */
 	function revertReservation(address _addressToRevert) onlyOwner public returns (bool) {
-		require (_addressToRevert != 0x0);                       // Prevent transfer to 0x0 address
 		require (reserved[_addressToRevert].pulsAmount > 0);	
 
 		totalSupply = totalSupply.add(reserved[_addressToRevert].pulsAmount);
@@ -390,7 +395,7 @@ contract PULSToken is BasicERC20Token {
 		_addressToRevert.transfer(reserved[_addressToRevert].collectedEther - (20000000000 * 21000));
 		reserved[_addressToRevert].collectedEther = 0;
 
-		RevertingReservation(_addressToRevert);
+		emit RevertingReservation(_addressToRevert);
 		return true;
 	}
 
@@ -416,7 +421,7 @@ contract PULSToken is BasicERC20Token {
         addressLocks[msg.sender].lockedTokens.push(lockStruct);
         balances[msg.sender] = balances[msg.sender].sub(_amount);
 
-        TokenLocking(msg.sender, _amount, _minutesToLock);
+        emit TokenLocking(msg.sender, _amount, _minutesToLock);
         return true;
 	}
 
@@ -434,7 +439,7 @@ contract PULSToken is BasicERC20Token {
 			if (now > addressLocks[_addressToUnlock].lockedTokens[i].startTime + addressLocks[_addressToUnlock].lockedTokens[i].timeToLock) {
 
 				balances[_addressToUnlock] = balances[_addressToUnlock].add(addressLocks[_addressToUnlock].lockedTokens[i].amount);
-				TokenUnlocking(_addressToUnlock, addressLocks[_addressToUnlock].lockedTokens[i].amount);
+				emit TokenUnlocking(_addressToUnlock, addressLocks[_addressToUnlock].lockedTokens[i].amount);
 
 				if (i < addressLocks[_addressToUnlock].lockedTokens.length) {
 					for (uint256 j = i; j < addressLocks[_addressToUnlock].lockedTokens.length - 1; j++){
@@ -463,25 +468,25 @@ contract PULSToken is BasicERC20Token {
  * @dev Math operations with safety checks that throw on error.
  */
 library SafeMath {
-	function mul(uint256 a, uint256 b) internal constant returns (uint256) {
+	function mul(uint256 a, uint256 b) internal pure returns (uint256) {
 		uint256 c = a * b;
 		assert(a == 0 || c / a == b);
 		return c;
 	}
 
-	function div(uint256 a, uint256 b) internal constant returns (uint256) {
+	function div(uint256 a, uint256 b) internal pure returns (uint256) {
 		// assert(b > 0); // Solidity automatically throws when dividing by 0
 		uint256 c = a / b;
 		// assert(a == b * c + a % b); // There is no case in which this doesn't hold
 		return c;
 	}
 
-	function sub(uint256 a, uint256 b) internal constant returns (uint256) {
+	function sub(uint256 a, uint256 b) internal pure returns (uint256) {
 		assert(b <= a);
 		return a - b;
 	}
 
-	function add(uint256 a, uint256 b) internal constant returns (uint256) {
+	function add(uint256 a, uint256 b) internal pure returns (uint256) {
 		uint256 c = a + b;
 		assert(c >= a);
 		return c;
@@ -513,7 +518,7 @@ contract StagedCrowdsale is Ownable {
      * 
      * @return A uint256 specifing the current stage number.
      */
-    function getCurrentStage() public constant returns(uint256) {
+    function getCurrentStage() public view returns(uint256) {
         for(uint256 i=0; i < stages.length; i++) {
             if(stages[i].closed == 0) {
                 return i;
@@ -529,9 +534,9 @@ contract StagedCrowdsale is Ownable {
      * @param _hardcap The hardcap of the stage.
      * @param _price The amount of tokens you will receive per 1 ETH for this stage.
      */
-    function addStage(uint256 _hardcap, uint256 _price, uint256 _minInvestment) onlyOwner public {
+    function addStage(uint256 _hardcap, uint256 _price, uint256 _minInvestment, uint _invested) onlyOwner public {
         require(_hardcap > 0 && _price > 0);
-        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, _minInvestment.mul(1 ether).div(10), 0, 0);
+        Stage memory stage = Stage(_hardcap.mul(1 ether), _price, _minInvestment.mul(1 ether).div(10), _invested.mul(1 ether), 0);
         stages.push(stage);
     }
 
@@ -552,25 +557,39 @@ contract StagedCrowdsale is Ownable {
             stages[_stageNumber + 1].invested = stages[_stageNumber].hardcap;
         }
     }
+
+
+    /**
+     * @dev Function to remove all stages.
+     *
+     * @return True if the operation was successful.
+    */
+    function removeStages() onlyOwner public returns (bool) {
+        require(stages.length > 0);
+
+        stages.length = 0;
+
+        return true;
+    }
 }
 
 /**
- * @title Basic crowdsale
- * @dev Basic crowdsale functionality.
+ * @title PULS crowdsale
+ * @dev PULS crowdsale functionality.
  */
-contract Crowdsale is StagedCrowdsale {
+contract PULSCrowdsale is StagedCrowdsale {
 	using SafeMath for uint256;
 
 	PULSToken public token;
 
 	// Public variables of the crowdsale
 	address public multiSigWallet; 	// address where funds are collected
-	uint256 public totalWeiRaised;	// amount of raised money in wei
 	bool public hasEnded;
 	bool public isPaused;	
 
-	event TokenReservation(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
-	event ForwardingFunds(uint256 value);
+
+	event TokenReservation(address purchaser, address indexed beneficiary, uint256 indexed sendEther, uint256 indexed pulsAmount);
+	event ForwardingFunds(uint256 indexed value);
 
 
 	/**
@@ -585,15 +604,6 @@ contract Crowdsale is StagedCrowdsale {
 	/**
      * @dev Throws if crowdsale has not ended.
      */
-	modifier ended() {
-		require(hasEnded);
-		_;
-	}
-
-
-	/**
-     * @dev Throws if crowdsale has not ended.
-     */
 	modifier notPaused() {
 		require(!isPaused);
 		_;
@@ -601,33 +611,22 @@ contract Crowdsale is StagedCrowdsale {
 
 
 	/**
-     * @dev Throws if crowdsale is not paused.
-     */
-	modifier paused() {
-		require(isPaused);
-		_;
-	}
-
-
-	/**
      * @dev The Crowdsale constructor sets the multisig wallet for forwanding funds.
      * Adds stages to the crowdsale. Initialize PULS tokens.
-     *
-     * @param _wallet Address of multisig wallet.
      */
-	function Crowdsale(address _wallet) public {
-		require(_wallet != address(0));
-
+	function PULSCrowdsale() public {
 		token = createTokenContract();
 
-		multiSigWallet = _wallet;
-		totalWeiRaised = 0;
+		multiSigWallet = 0x00E9c72F684De1C49E45B1c9403d4DD152f93C32;
 		hasEnded = false;
 		isPaused = false;
 
-		addStage(1, 3000, 1); //3rd value is actually div 10
-		addStage(2, 2000, 2); //3rd value is actually div 10
-		addStage(3, 1000, 3); //3rd value is actually div 10
+		addStage(2500, 2000, 10, 0);  //3rd value is actually div 10
+		addStage(3000, 1600, 1, 0);   //3rd value is actually div 10
+		addStage(3500, 1550, 1, 0);   //3rd value is actually div 10
+		addStage(4000, 1500, 1, 0);   //3rd value is actually div 10
+		addStage(4500, 1450, 1, 0);   //3rd value is actually div 10
+		addStage(42500, 1400, 1, 0);  //3rd value is actually div 10
 	}
 
 
@@ -654,8 +653,8 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @param _beneficiary The address of the buyer.
      */
-	function buyTokens(address _beneficiary) payable notEnded notPaused {
-		require(msg.value > 0);
+	function buyTokens(address _beneficiary) payable notEnded notPaused public {
+		require(msg.value >= 0);
 		
 		uint256 stageIndex = getCurrentStage();
 		Stage storage stageCurrent = stages[stageIndex];
@@ -672,18 +671,16 @@ contract Crowdsale is StagedCrowdsale {
 				Stage storage stageNext = stages[stageIndex + 1];
 
 				tokens = msg.value.mul(stageCurrent.price);
-				token.reserveTokens(_beneficiary, tokens, msg.value);
+				token.reserveTokens(_beneficiary, tokens, msg.value, 0);
 
-				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageNext.invested = stageCurrent.invested.add(msg.value);
 
 				stageCurrent.invested = stageCurrent.hardcap;
 			}
 			else {
 				tokens = msg.value.mul(stageCurrent.price);
-				token.reserveTokens(_beneficiary, tokens, msg.value);
+				token.reserveTokens(_beneficiary, tokens, msg.value, 0);
 
-				totalWeiRaised = totalWeiRaised.add(msg.value);
 				stageCurrent.invested = stageCurrent.invested.add(msg.value);
 
 				hasEnded = true;
@@ -691,13 +688,12 @@ contract Crowdsale is StagedCrowdsale {
 		}
 		else {
 			tokens = msg.value.mul(stageCurrent.price);
-			token.reserveTokens(_beneficiary, tokens, msg.value);
+			token.reserveTokens(_beneficiary, tokens, msg.value, 0);
 
-			totalWeiRaised = totalWeiRaised.add(msg.value);
 			stageCurrent.invested = stageCurrent.invested.add(msg.value);
 		}
 
-		TokenReservation(msg.sender, _beneficiary, msg.value, tokens);
+		emit TokenReservation(msg.sender, _beneficiary, msg.value, tokens);
 		forwardFunds();
 	}
 
@@ -707,10 +703,10 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @param _beneficiary The address of the buyer.
      */
-	function privatePresaleTokenReservation(address _beneficiary, uint256 _amount) onlyOwner public {
-		require (_beneficiary != 0x0);					// Prevent transfer to 0x0 address
-
-		token.reserveTokens(_beneficiary, _amount, 0);
+	function privatePresaleTokenReservation(address _beneficiary, uint256 _amount, uint256 _reserveTypeId) onlyOwner public {
+		require (_reserveTypeId > 0);
+		token.reserveTokens(_beneficiary, _amount, 0, _reserveTypeId);
+		emit TokenReservation(msg.sender, _beneficiary, 0, _amount);
 	}
 
 
@@ -719,7 +715,7 @@ contract Crowdsale is StagedCrowdsale {
      */
 	function forwardFunds() internal {
 		multiSigWallet.transfer(msg.value);
-		ForwardingFunds(msg.value);
+		emit ForwardingFunds(msg.value);
 	}
 
 
@@ -750,26 +746,20 @@ contract Crowdsale is StagedCrowdsale {
      *
      * @return True if the operation was successful.
      */ 
-	function unpauseCrowdsale() onlyOwner notEnded paused public returns (bool) {
+	function unpauseCrowdsale() onlyOwner notEnded public returns (bool) {
 		isPaused = false;
+		return true;
+	}
+
+
+	/**
+     * @dev Function to change multisgwallet.
+     *
+     * @return True if the operation was successful.
+     */ 
+	function changeMultiSigWallet(address _newMultiSigWallet) onlyOwner public returns (bool) {
+		multiSigWallet = _newMultiSigWallet;
 		return true;
 	}
 }
 
-
-
-/**
- * @title PULS Token crowdsale.
- * @dev Contract to deploy into blockchain.
- */
-contract PULSCrowdsale is Crowdsale {
-
-	/**
-     * @dev The PULS Crowdsale constructor initializes Crowdsale smart contract.
-     *
-     * @param _wallet The address of multisig wallet.
-     */
-    function PULSCrowdsale(address _wallet) Crowdsale(_wallet) {
-
-    }
-}

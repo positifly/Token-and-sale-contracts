@@ -1,4 +1,4 @@
-pragma solidity ^0.4.15;
+pragma solidity ^0.4.21;
 
 import './BasicERC20Token.sol';
 
@@ -10,7 +10,7 @@ contract PULSToken is BasicERC20Token {
 	// Public variables of the token
 	string public constant name = 'PULS Token';
 	string public constant symbol = 'PULS';
-	uint8 public constant decimals = 18;
+	uint256 public constant decimals = 18;
 	uint256 public constant INITIAL_SUPPLY = 88888888000000000000000000;
 
 	address public crowdsaleAddress;
@@ -47,10 +47,10 @@ contract PULSToken is BasicERC20Token {
 		_;
 	}
 
-	event TokenReservation(address indexed beneficiary, uint256 amount);
-	event RevertingReservation(address addressToRevert);
-	event TokenLocking(address addressToLock, uint256 amount, uint256 timeToLock);
-	event TokenUnlocking(address addressToUnlock, uint256 amount);
+	event TokenReservation(address indexed beneficiary, uint256 sendEther, uint256 indexed pulsAmount, uint256 reserveTypeId);
+	event RevertingReservation(address indexed addressToRevert);
+	event TokenLocking(address indexed addressToLock, uint256 indexed amount, uint256 timeToLock);
+	event TokenUnlocking(address indexed addressToUnlock, uint256 indexed amount);
 
 
 	/**
@@ -63,7 +63,7 @@ contract PULSToken is BasicERC20Token {
 		
 		crowdsaleAddress = msg.sender;
 
-		Transfer(0x0, msg.sender, INITIAL_SUPPLY);
+		emit Transfer(0x0, msg.sender, INITIAL_SUPPLY);
 	}
 
 
@@ -81,7 +81,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
      */
-	function reserveOf(address _owner) public constant returns (uint256) {
+	function reserveOf(address _owner) public view returns (uint256) {
 		return reserved[_owner].pulsAmount;
 	}
 
@@ -93,7 +93,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of tokens which are held in reserve for this address.
      */
-	function collectedEtherFrom(address _buyer) public constant returns (uint256) {
+	function collectedEtherFrom(address _buyer) public view returns (uint256) {
 		return reserved[_buyer].collectedEther;
 	}
 
@@ -105,7 +105,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 length of array.
      */
-	function getAddressLockedLength(address _address) public constant returns(uint256 length) {
+	function getAddressLockedLength(address _address) public view returns(uint256 length) {
 	    return addressLocks[_address].lockedTokens.length;
 	}
 
@@ -118,7 +118,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the amount of locked tokens.
      */
-	function getLockedStructAmount(address _address, uint256 _index) public constant returns(uint256 amount) {
+	function getLockedStructAmount(address _address, uint256 _index) public view returns(uint256 amount) {
 	    return addressLocks[_address].lockedTokens[_index].amount;
 	}
 
@@ -131,7 +131,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the start time of lock in seconds.
      */
-	function getLockedStructStartTime(address _address, uint256 _index) public constant returns(uint256 startTime) {
+	function getLockedStructStartTime(address _address, uint256 _index) public view returns(uint256 startTime) {
 	    return addressLocks[_address].lockedTokens[_index].startTime;
 	}
 
@@ -144,7 +144,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The uint256 specifing the duration time of lock in seconds.
      */
-	function getLockedStructTimeToLock(address _address, uint256 _index) public constant returns(uint256 timeToLock) {
+	function getLockedStructTimeToLock(address _address, uint256 _index) public view returns(uint256 timeToLock) {
 	    return addressLocks[_address].lockedTokens[_index].timeToLock;
 	}
 
@@ -157,7 +157,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return The bytes32 specifing the pulse hash.
      */
-	function getLockedStructPulseLockHash(address _address, uint256 _index) public constant returns(bytes32 pulseLockHash) {
+	function getLockedStructPulseLockHash(address _address, uint256 _index) public view returns(bytes32 pulseLockHash) {
 	    return addressLocks[_address].lockedTokens[_index].pulseLockHash;
 	}
 
@@ -169,7 +169,7 @@ contract PULSToken is BasicERC20Token {
      *
      * @return True if the operation was successful.
      */
-	function sendTokens(address _beneficiary) onlyOwner returns (bool) {
+	function sendTokens(address _beneficiary) onlyOwner public returns (bool) {
 		require (reserved[_beneficiary].pulsAmount > 0);		 // Check if reserved tokens for _beneficiary address is greater then 0
 
 		_transfer(crowdsaleAddress, _beneficiary, reserved[_beneficiary].pulsAmount);
@@ -189,15 +189,15 @@ contract PULSToken is BasicERC20Token {
      *
      * @return True if the operation was successful.
      */
-	function reserveTokens(address _beneficiary, uint256 _pulsAmount, uint256 _eth) onlyCrowdsaleAddress public returns (bool) {
-		require (_beneficiary != 0x0);                       // Prevent transfer to 0x0 address
-		require (totalSupply >= _pulsAmount);                // Check if such tokens amount left
+	function reserveTokens(address _beneficiary, uint256 _pulsAmount, uint256 _eth, uint256 _reserveTypeId) onlyCrowdsaleAddress public returns (bool) {
+		require (_beneficiary != 0x0);					// Prevent transfer to 0x0 address
+		require (totalSupply >= _pulsAmount);           // Check if such tokens amount left
 
 		totalSupply = totalSupply.sub(_pulsAmount);
 		reserved[_beneficiary].pulsAmount = reserved[_beneficiary].pulsAmount.add(_pulsAmount);
 		reserved[_beneficiary].collectedEther = reserved[_beneficiary].collectedEther.add(_eth);
 
-		TokenReservation(_beneficiary, _pulsAmount);
+		emit TokenReservation(_beneficiary, _eth, _pulsAmount, _reserveTypeId);
 		return true;
 	}
 
@@ -210,7 +210,6 @@ contract PULSToken is BasicERC20Token {
      * @return True if the operation was successful.
      */
 	function revertReservation(address _addressToRevert) onlyOwner public returns (bool) {
-		require (_addressToRevert != 0x0);                       // Prevent transfer to 0x0 address
 		require (reserved[_addressToRevert].pulsAmount > 0);	
 
 		totalSupply = totalSupply.add(reserved[_addressToRevert].pulsAmount);
@@ -219,7 +218,7 @@ contract PULSToken is BasicERC20Token {
 		_addressToRevert.transfer(reserved[_addressToRevert].collectedEther - (20000000000 * 21000));
 		reserved[_addressToRevert].collectedEther = 0;
 
-		RevertingReservation(_addressToRevert);
+		emit RevertingReservation(_addressToRevert);
 		return true;
 	}
 
@@ -245,7 +244,7 @@ contract PULSToken is BasicERC20Token {
         addressLocks[msg.sender].lockedTokens.push(lockStruct);
         balances[msg.sender] = balances[msg.sender].sub(_amount);
 
-        TokenLocking(msg.sender, _amount, _minutesToLock);
+        emit TokenLocking(msg.sender, _amount, _minutesToLock);
         return true;
 	}
 
@@ -263,7 +262,7 @@ contract PULSToken is BasicERC20Token {
 			if (now > addressLocks[_addressToUnlock].lockedTokens[i].startTime + addressLocks[_addressToUnlock].lockedTokens[i].timeToLock) {
 
 				balances[_addressToUnlock] = balances[_addressToUnlock].add(addressLocks[_addressToUnlock].lockedTokens[i].amount);
-				TokenUnlocking(_addressToUnlock, addressLocks[_addressToUnlock].lockedTokens[i].amount);
+				emit TokenUnlocking(_addressToUnlock, addressLocks[_addressToUnlock].lockedTokens[i].amount);
 
 				if (i < addressLocks[_addressToUnlock].lockedTokens.length) {
 					for (uint256 j = i; j < addressLocks[_addressToUnlock].lockedTokens.length - 1; j++){
