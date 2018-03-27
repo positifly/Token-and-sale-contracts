@@ -47,11 +47,10 @@ contract PULSCrowdsale is StagedCrowdsale {
 	function PULSCrowdsale() public {
 		token = createTokenContract();
 
-		multiSigWallet = 0x00E9c72F684De1C49E45B1c9403d4DD152f93C32;
+		multiSigWallet = 0x00955149d0f425179000e914F0DFC2eBD96d6f43;
 		hasEnded = false;
 		isPaused = false;
 
-		addStage(2500, 2000, 10, 0);  //3rd value is actually div 10
 		addStage(3000, 1600, 1, 0);   //3rd value is actually div 10
 		addStage(3500, 1550, 1, 0);   //3rd value is actually div 10
 		addStage(4000, 1500, 1, 0);   //3rd value is actually div 10
@@ -192,4 +191,3 @@ contract PULSCrowdsale is StagedCrowdsale {
 		return true;
 	}
 }
-
